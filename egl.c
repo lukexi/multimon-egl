@@ -213,7 +213,7 @@ EGLDisplay GetEglDisplay(EGLDeviceEXT device, int drmFd)
 /*
  * Set up EGL to present to a DRM KMS plane through an EGLStream.
  */
-EGLSurface SetUpEgl(EGLDisplay eglDpy, uint32_t planeID, int width, int height)
+EGLSurface SetUpEgl(EGLDisplay eglDpy, uint32_t crtcID, int width, int height, EGLContext *context)
 {
     EGLint configAttribs[] = {
         EGL_SURFACE_TYPE, EGL_STREAM_BIT_KHR,
@@ -229,8 +229,10 @@ EGLSurface SetUpEgl(EGLDisplay eglDpy, uint32_t planeID, int width, int height)
     EGLint contextAttribs[] = { EGL_NONE };
 
     EGLAttrib layerAttribs[] = {
-        EGL_DRM_PLANE_EXT,
-        planeID,
+        // EGL_DRM_PLANE_EXT,
+        // planeID,
+        EGL_DRM_CRTC_EXT,
+        crtcID,
         EGL_NONE,
     };
 
@@ -311,7 +313,7 @@ EGLSurface SetUpEgl(EGLDisplay eglDpy, uint32_t planeID, int width, int height)
     ret = pEglGetOutputLayersEXT(eglDpy, layerAttribs, &eglLayer, 1, &n);
 
     if (!ret || !n) {
-        Fatal("Unable to get EGLOutputLayer for plane 0x%08x\n", planeID);
+        Fatal("Unable to get EGLOutputLayer for crtc 0x%08x\n", crtcID);
     }
 
     /* Create an EGLStream. */
@@ -377,6 +379,7 @@ EGLSurface SetUpEgl(EGLDisplay eglDpy, uint32_t planeID, int width, int height)
         Fatal("Unable to make context and surface current.\n");
     }
 
+    *context = eglContext;
     return eglSurface;
 }
 

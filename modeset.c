@@ -40,6 +40,13 @@
 #include <xf86drm.h>
 #include <xf86drmMode.h>
 
+// OpenGL
+#include <EGL/egl.h>
+#include <EGL/eglext.h>
+#include <GL/glew.h>
+#include "egl.h"
+#include "utils.h"
+
 struct modeset_dev;
 static int modeset_find_crtc(int fd, drmModeRes *res, drmModeConnector *conn,
 			     struct modeset_dev *dev);
@@ -160,6 +167,8 @@ struct modeset_dev {
 	uint32_t conn;
 	uint32_t crtc;
 	drmModeCrtc *saved_crtc;
+	EGLSurface surface;
+	EGLContext context;
 };
 
 static struct modeset_dev *modeset_list = NULL;
@@ -572,8 +581,57 @@ int main(int argc, char **argv)
 				iter->conn, errno);
 	}
 
-	/* draw some colors for 5seconds */
-	modeset_draw();
+
+
+	// EGL TIME
+	EGLDisplay eglDisplay;
+    EGLDeviceEXT eglDevice;
+
+    GetEglExtensionFunctionPointers();
+
+    eglDevice = GetEglDevice();
+
+    // drmFd = GetDrmFd(eglDevice);
+
+    // From kms.c
+    // SetMode(drmFd, &PlaneID, &Width, &Height);
+
+    eglDisplay = GetEglDisplay(eglDevice, fd);
+
+
+
+
+	for (iter = modeset_list; iter; iter = iter->next) {
+		EGLContext eglContext;
+		iter->surface = SetUpEgl(eglDisplay, iter->crtc, iter->width, iter->height, &eglContext);
+		iter->context = eglContext;
+	}
+
+	// GLEW TIME
+	glewExperimental = GL_TRUE;
+    if(glewInit() != GLEW_OK) {
+        printf("Could not init glew.\n");
+        return 0;
+    }
+    GLenum GLEWError = glGetError();
+    if (GLEWError) {
+        printf("GLEW returned error: %i\n", GLEWError);
+    }
+
+	int i = 10000;
+	while (i--) {
+		for (iter = modeset_list; iter; iter = iter->next) {
+			eglMakeCurrent(eglDisplay, iter->surface, iter->surface, iter->context);
+
+			glClearColor(RANDFLOAT, RANDFLOAT, RANDFLOAT, 1);
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+			eglSwapBuffers(eglDisplay, iter->surface);
+			usleep(100000);
+		}
+	}
+
+	// modeset_draw();
 
 	/* cleanup everything */
 	modeset_cleanup(fd);
@@ -629,7 +687,7 @@ static uint8_t next_color(bool *up, uint8_t cur, unsigned int mod)
  * You can also use drmModePageFlip() to do a vsync'ed pageflip. But this is
  * beyond the scope of this document.
  */
-
+/*
 static void modeset_draw(void)
 {
 	uint8_t r, g, b;
@@ -661,7 +719,7 @@ static void modeset_draw(void)
 		usleep(100000);
 	}
 }
-
+*/
 /*
  * modeset_cleanup(fd): This cleans up all the devices we created during
  * modeset_prepare(). It resets the CRTCs to their saved states and deallocates
